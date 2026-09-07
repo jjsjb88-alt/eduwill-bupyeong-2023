@@ -1,90 +1,27 @@
 #!/usr/bin/env bash
-# 2023 편입영어 해설집 — GitHub Pages 배포 스크립트
+# ⛔⛔ 이 폴더는 «폐기»됐다. 이 스크립트는 아무것도 하지 않는다.
 #
-# 하는 일: 산출물 최신성 + 게이트를 «실측»한 뒤 통과할 때만 배포한다.
-# 검사를 건너뛰려면: ./배포.sh --force   (테스트 배포용)
+# 2023 해설집의 «진짜» 배포 경로는 2022 저장소의 하위 폴더다:
+#     /c/Users/jbseo/Desktop/exam-dist-2022/배포_2023.sh
+#     → https://jbseo-commits.github.io/eduwill-bupyeong-2022/2023/
+# 2023 전용 저장소를 따로 만들지 않은 것은 2026-09-03 사용자 결정이다.
 #
-# 🔴 2022 는 «다른 계정·다른 저장소»다 — jbseo-commits/eduwill-bupyeong-2022.
-#    두 해를 한 번에 올리는 스크립트는 없다. 각자 자기 폴더에서 돌린다.
+# 🔴 왜 이 파일을 막았나 — 2026-09-07 에 개인계정 세션이 «이 폴더»를 골라 돌렸다.
+#    폴더 이름이 `exam-dist-2023` 이라 그럴듯해 보였다. 실제로는
+#      · remote 가 `jjsjb88-alt`(개인 백업계정) → 403 으로 죽어 있다
+#      · 검사가 2026-08-31 사고 이전 판이다 — 공통 관문을 안 부르고 `PYTHONIOENCODING` 도 없다
+#        (그래서 `cp949` 가 `✅` 를 못 써 UnicodeEncodeError 로 죽었다. 다행히 복사 «전»이었다)
+#    폐기 사실은 `exam-dist-2022/배포_2023.sh` 머리말에 «이미» 적혀 있었다.
+#    그 문서를 안 보고 폴더 이름만 보고 골랐다. 그래서 이제 «파일이 직접» 막는다.
+#
+# 📌 종전 내용은 `배포.sh.폐기_백업` 에 남겼다. 되살릴 일은 없어야 한다.
 
-set -u
-SRC_REPO="/c/Users/jbseo/Desktop/exam-qa"
-SRC_HTML="$SRC_REPO/dist/2023/2023_편입영어_해설.html"
-DIST="$(cd "$(dirname "$0")" && pwd)"
-FORCE=0
-[ "${1:-}" = "--force" ] && FORCE=1
-
-echo "== 1. 산출물 확인 =="
-if [ ! -f "$SRC_HTML" ]; then
-  echo "  🔴 산출물이 없다: $SRC_HTML"
-  echo "     python scripts/build_expl_html.py 2023 --scope sale  를 먼저 돌려라."
-  exit 1
-fi
-python - "$SRC_REPO" <<'PY'
-import sys, os, glob, datetime
-repo = sys.argv[1]
-html = os.path.join(repo, "dist/2023/2023_편입영어_해설.html")
-ht = os.path.getmtime(html)
-print("  산출물: %s bytes · %s" % (
-    format(os.path.getsize(html), ","),
-    datetime.datetime.fromtimestamp(ht).strftime("%Y-%m-%d %H:%M")))
-newer = [p for p in glob.glob(os.path.join(repo, "parsed/2023/*.json"))
-         if ".bak_" not in p and os.path.getmtime(p) > ht]
-if newer:
-    print("  🔴 parsed/2023 %d개가 산출물보다 «새롭다» — 재빌드가 필요하다." % len(newer))
-    for p in newer[:5]:
-        print("      %s" % os.path.basename(p))
-    sys.exit(2)
-print("  ✅ parsed/2023 대비 최신이다.")
-PY
-STALE=$?
-
+echo "⛔ exam-dist-2023/ 은 폐기된 폴더다. 이 스크립트는 배포하지 않는다."
 echo
-echo "== 2. 게이트 =="
-# 🔴 블로커를 손으로 열거하지 않고 게이트를 그대로 부른다 —
-#    검사 목록이 두 곳으로 갈라져 한쪽만 낡는 것을 막는다.
-( cd "$SRC_REPO" && PYTHONIOENCODING=utf-8 .venv/Scripts/python.exe scripts/gate_expl_html.py 2023 --scope sale >/dev/null 2>&1 )
-GATE=$?
-[ "$GATE" = "0" ] && echo "  ✅ gate_expl_html 2023 --scope sale PASS" \
-                  || echo "  🔴 게이트 FAIL — exam-qa 에서 직접 돌려 원인을 볼 것."
-
+echo "   2023 은 «2022 저장소의 하위 경로»로 나간다:"
+echo "     ./배포_2023.sh"
+echo "     → https://jbseo-commits.github.io/eduwill-bupyeong-2022/2023/"
 echo
-if [ "$STALE" != "0" ] || [ "$GATE" != "0" ]; then
-  echo "🔴 배포 조건을 만족하지 못했다."
-  if [ "$FORCE" != "1" ]; then
-    echo "   학생이 «돈을 내고» 보는 상품이다. 고친 뒤 다시 실행하라."
-    echo "   테스트 목적이면: ./배포.sh --force"
-    exit 1
-  fi
-  echo "⚠️  --force 라 «결함을 알면서» 계속한다."
-else
-  echo "✅ 배포 조건 통과."
-fi
-
-echo
-echo "== 3. 복사 =="
-cp "$SRC_HTML" "$DIST/index.html" || exit 1
-python - "$SRC_HTML" "$DIST/index.html" <<'PY'
-import sys, hashlib, os
-a, b = sys.argv[1], sys.argv[2]
-ha = hashlib.sha256(open(a, "rb").read()).hexdigest()
-hb = hashlib.sha256(open(b, "rb").read()).hexdigest()
-print("  %s bytes · sha256 %s · 동일 %s" % (format(os.path.getsize(b), ","), hb[:16], ha == hb))
-sys.exit(0 if ha == hb else 1)
-PY
-[ $? -ne 0 ] && echo "  🔴 복사본이 원본과 다르다." && exit 1
-
-echo
-echo "== 4. 커밋 · 푸시 =="
-cd "$DIST" || exit 1
-git add index.html .nojekyll robots.txt README.md 배포.sh
-if git diff --cached --quiet; then
-  echo "  변경 없음 — 커밋 생략."
-else
-  git commit -m "재배포 $(date '+%Y-%m-%d %H:%M')" || exit 1
-fi
-if git remote get-url origin >/dev/null 2>&1; then
-  git push && echo "  ✅ push 완료. Pages 반영에 최대 10분 걸린다(CDN 캐시)."
-else
-  echo "  ℹ️  origin 이 없다. README.md 의 «최초 1회» 절차를 먼저 하라."
-fi
+echo "   이 폴더의 remote 는 jjsjb88-alt(개인 백업계정)라 403 으로 죽어 있다."
+echo "   근거: exam-dist-2022/배포_2023.sh 머리말 · 2026-09-03 사용자 결정."
+exit 1
